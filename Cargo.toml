@@ -1,0 +1,17 @@
+[package]
+name = "mhws-obt-server"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+ntex = { version = "2.11.0", features = ["compio", "rustls"] }
+compio = "0.13"
+derive_more = { version = "2", features = ["full"] }
+anyhow = "1"
+rustls = "0.23"
+clap = { version = "4", features = ["derive"] }
+futures = "0.3"
+base64 = "0.22"
+serde = "1"
+env_logger = "0.11"
+log = "0.4"
