@@ -1,12 +1,18 @@
 
-use derive_more::Display;
+use std::fmt::Display;
+
 use ntex::{http, web};
 
-#[derive(Debug, Display)]
-#[display("Error: {}", desc)]
+#[derive(Debug)]
 pub struct ObtError {
     desc: String,
     status_code: http::StatusCode
+}
+
+impl Display for ObtError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Error: {}", self.desc)
+    }
 }
 
 impl ObtError {

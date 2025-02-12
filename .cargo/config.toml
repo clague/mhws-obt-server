@@ -1,0 +1,11 @@
+[profile.release]
+rustflags = ["-Zlocation-detail=none", "-Zfmt-debug=none", "-Cpanic=abort"]
+
+[unstable]
+profile-rustflags = true
+build-std = ["std", "core", "alloc", "panic_abort"]
+build-std-features = ["optimize_for_size"]
+
+[alias]
+rr = "run -Z build-std-features=optimize_for_size,panic_immediate_abort --release"
+bb = "build -Z build-std-features=optimize_for_size,panic_immediate_abort --release"

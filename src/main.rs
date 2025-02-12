@@ -1,33 +1,19 @@
 #![feature(random)]
-use std::path::PathBuf;
+use std::{net::SocketAddr, path::PathBuf};
 
 use anyhow::{anyhow, Result};
-use log::info;
+use clap::{command, parser::ValueSource, value_parser, Arg, Command};
+use log::{info, warn};
 use compio::{fs::File, io::AsyncReadAtExt};
 use error::ObtError;
-use clap::Parser;
 use rustls::{pki_types::{pem::PemObject, CertificateDer, PrivateKeyDer}, ServerConfig};
-use ntex::{fn_service, chain, web, service::{fn_factory_with_config, Service}};
+use ntex::{chain, fn_service, service::{fn_factory_with_config, fn_shutdown, Service}, web};
 use futures::{future::ready, TryFutureExt};
 use env_logger::Env;
 
 mod error;
 mod route;
-
-#[derive(Parser)]
-#[command(version, about, long_about = None)]
-struct Cli {
-    #[arg(short, long, value_name = "CRT_FILE")]
-    crt: Option<PathBuf>,
-
-    /// Sets a custom config file
-    #[arg(short, long, value_name = "KEY_FILE")]
-    key: Option<PathBuf>,
-
-    /// Turn debugging information on
-    #[arg(short, long, value_name = "address:port")]
-    listen: Option<String>
-}
+mod strings;
 
 async fn default_handle() -> Result<&'static str, ObtError> {
     Err(ObtError::new("resources cannot be found", 404).unwrap())
@@ -68,8 +54,12 @@ async fn ws_service(
         ready(Ok(item))
     });
 
+    let on_shutdown = fn_shutdown(|| {
+        warn!("Websocket connection shutdown");
+    });
+
     // pipe our service with on_shutdown callback
-    Ok(chain(service))
+    Ok(chain(service).and_then(on_shutdown))
 }
 
 /// do websocket handshake and start web sockets service
@@ -80,11 +70,35 @@ async fn ws_index(req: web::HttpRequest) -> Result<web::HttpResponse, ObtError> 
 
 #[ntex::main]
 async fn main() -> Result<()> {
+    let matches = command!()
+        .override_help(strings::HELP.replace("{command}", &std::env::args().nth(0).unwrap_or("mhws-obt-server".to_owned())))
+        .arg(Arg::new("crt")
+            .short('c').long("crt").value_name("FILE")
+            .help("Sets a custom certificate pem file")
+            .required(false)
+            .default_value("./obt-wilds.crt")
+            .value_parser(value_parser!(PathBuf)),
+        )
+        .arg(Arg::new("key")
+            .short('k').long("key").value_name("FILE")
+            .help("Sets a custom key pem file")
+            .required(false)
+            .default_value("./obt-wilds.key")
+            .value_parser(value_parser!(PathBuf)),
+        )
+        .arg(Arg::new("listen")
+            .short('l').long("listen").value_name("ADDRESS:PORT")
+            .help("Sets a custom key pem file")
+            .required(false)
+            .default_value("127.0.0.1:443")
+            .value_parser(value_parser!(SocketAddr)),
+        )
+        .get_matches();
     //let args: Vec<String> = std::env::args().collect();
     //OpenOptions::new().write(true).create(true).open("./args.txt").await?.write_all_at(args.join("\n"), 0).await.unwrap();
     env_logger::init_from_env(Env::default().default_filter_or("info"));
-    let cli = Cli::parse();
-    let use_tls = cli.crt.is_some() || cli.key.is_some();
+    let use_tls = matches.value_source("crt").is_some_and(|s| s != ValueSource::DefaultValue) ||
+        matches.value_source("key").is_some_and(|s| s != ValueSource::DefaultValue);
 
     let server = || web::HttpServer::new(|| {
         web::App::new()
@@ -118,13 +132,13 @@ async fn main() -> Result<()> {
     });
 
     let cert_result: Result<(Vec<CertificateDer>, PrivateKeyDer)> = (async || {
-        let cert_chain = ready(Ok(File::open(cli.crt.unwrap_or("./obt-wilds.crt".into()))
+        let cert_chain = ready(Ok(File::open(matches.get_one::<PathBuf>("crt").unwrap())
             .await?))
             .and_then(async |f: File| {
                 Ok(vec![CertificateDer::from_pem_slice(&f.read_to_end_at(Vec::with_capacity(8192), 0).await.1)?])
             }).await
             .map_err(|e: anyhow::Error| anyhow!("Failed to import certificate: ".to_owned() + &e.to_string()))?;
-        let key_der = ready(Ok(File::open(cli.key.unwrap_or("./obt-wilds.key".into())).await?))
+        let key_der = ready(Ok(File::open(matches.get_one::<PathBuf>("key").unwrap()).await?))
             .and_then(async |f: File| {
                 Ok(PrivateKeyDer::from_pem_slice(&f.read_to_end_at(Vec::with_capacity(8192), 0).await.1)?)
             }).await
@@ -137,11 +151,11 @@ async fn main() -> Result<()> {
         let tls_config = ServerConfig::builder()
             .with_no_client_auth()
             .with_single_cert(cert_chain, key_der)?;
-        Ok(server().bind_rustls(("localhost", 443), tls_config)?.run().await?)
+        Ok(server().bind_rustls(matches.get_one::<SocketAddr>("listen").unwrap(), tls_config)?.run().await?)
     }).or_else(async |e| {
         if use_tls {
             return Err(e)
         }
-        Ok(server().bind(("localhost", 443))?.run().await?)
+        Ok(server().bind(matches.get_one::<SocketAddr>("listen").unwrap())?.run().await?)
     }).await
 }
