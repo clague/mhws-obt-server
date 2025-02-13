@@ -8,9 +8,9 @@ ntex = { version = "2.11.0", features = ["compio", "rustls", "ws"], default-feat
 compio = { version = "0.13", features = ["runtime", "io-uring"] , default-features = false }
 anyhow = "1"
 rustls = { version = "0.23", features = ["std", "ring"], default-features = false }
-clap = { version = "4", features = ["std", "cargo"], default-features = false }
+clap = { version = "4", features = ["std", "cargo", "help", "usage"], default-features = true }
 futures = { version = "0.3", default-features = false }
-base64 = { version = "0.22", default-features = false }
+base64 = { version = "0.22", default-features = true }
 env_logger = { version = "0.11", features = ["auto-color", "humantime"], default-features = false }
 log = "0.4"
 

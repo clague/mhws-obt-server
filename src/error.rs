@@ -1,7 +1,6 @@
+use std::{any::Any, fmt::Display};
+use ntex::{http::{self, StatusCode}, web};
 
-use std::fmt::Display;
-
-use ntex::{http, web};
 
 #[derive(Debug)]
 pub struct ObtError {
@@ -16,8 +15,8 @@ impl Display for ObtError {
 }
 
 impl ObtError {
-    pub fn new(desc: &str, status_code: u16) -> Option<Self> {
-        Some(ObtError { desc: desc.to_owned(), status_code: http::StatusCode::from_u16(status_code).ok()? })
+    pub fn new(status_code: impl Into<StatusCode>, desc: &str) -> Self {
+        ObtError { desc: desc.to_owned(), status_code: status_code.into() }
     }
 }
 
@@ -36,15 +35,18 @@ impl web::error::WebResponseError for ObtError {
     }
 }
 
-impl<E: std::error::Error> From<E> for ObtError {
+impl<E: std::error::Error + Any> From<E> for ObtError  {
     fn from(value: E) -> Self {
-        ObtError{ status_code: http::StatusCode::INTERNAL_SERVER_ERROR, desc: value.to_string()}
+        Self { status_code:if (&value as &dyn Any).is::<std::io::Error>() { 
+            http::StatusCode::NOT_FOUND 
+        } else {
+            http::StatusCode::INTERNAL_SERVER_ERROR
+        }, desc: value.to_string() }
     }
 }
 
-pub static ERROR_PAGE: &str = "<html>
-<head><title>{status_code}</title></head>
-<body>
+pub(crate) static ERROR_PAGE: &str = "<html>
+dy>
 <center><h1>{status_code}</h1></center>
 <hr><center>{desc}</center>
 </body>
