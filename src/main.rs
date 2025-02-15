@@ -6,13 +6,14 @@ use clap::{builder::ArgPredicate, command, value_parser, Arg, ArgAction};
 use compio::{fs::File, io::AsyncReadAtExt};
 use error::ObtError;
 use rustls::{pki_types::{pem::PemObject, CertificateDer, PrivateKeyDer}, ServerConfig};
-use ntex::{http::{header, StatusCode}, web::{self}};
+use ntex::{http::{header, StatusCode}, web};
 use futures::{future::ready, TryFutureExt};
 use env_logger::Env;
 use base64::prelude::*;
 
 mod error;
 mod ws;
+mod route;
 
 async fn default_handle(req: web::HttpRequest) -> Result<impl web::Responder, ObtError> {
     let path = req.path()
@@ -93,6 +94,7 @@ async fn main() -> Result<()> {
                 .wrap(web::middleware::Logger::default())
                 .service(web::resource("/200").to(ok))
                 .service(web::resource("/ws").route(web::get().to(ws::ws_index)))
+                .service(route::sync::hunter_sync)
                 .default_service(web::route().to(default_handle))
         }))
     };

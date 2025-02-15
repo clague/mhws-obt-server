@@ -10,9 +10,12 @@ anyhow = "1"
 rustls = { version = "0.23", features = ["std", "ring"], default-features = false }
 clap = { version = "4", features = ["std", "cargo", "help", "usage"], default-features = true }
 futures = { version = "0.3", default-features = false }
-base64 = { version = "0.22", default-features = true }
+base64 = { version = "0.22", default-features = false }
 env_logger = { version = "0.11", features = ["auto-color", "humantime"], default-features = false }
 log = "0.4"
+rmp-serde = { version = "1.3.0", default-features = true }
+serde = "*"
+serde_bytes = "0.11.15"
 
 [profile.release]
 strip = true
